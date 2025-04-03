@@ -28,10 +28,67 @@ watchdog==2.1.7
 apt-get install python3-tk
 ```
 
+
+
 # Estructura del Proyecto
-
-
-```bash
-
+```folder
+/backup-sd
+    ├── app.py                # Script principal para la aplicación de backup
+    ├── backup_logic.py       # Lógica de backup (manejo de archivos, verificación de checksums)
+    ├── config.json           # Archivo de configuración con los ajustes del proyecto
+    ├── lang.json             # Archivo de traducción para múltiples idiomas (opcional)
+    ├── logs/                 # Carpeta donde se guardan los logs del backup
+    ├── last_checksums.txt    # Archivo de último checksum calculado
+    ├── backup_history.csv    # Archivo CSV donde se guarda el historial de backups
+    └── requirements.txt      # Lista de paquetes necesarios para ejecutar el proyecto
 ```
+
+# Instalación
+1. Clona este repositorio:
+```bash
+git clone https://github.com/tu_usuario/backup-sd.git
+```
+
+2. Accede al directorio del proyecto:
+```bash
+cd backup-sd
+```
+
+3. Instala los paquetes necesarios:
+```bash
+pip install -r requirements.txt
+```
+
+4. Asegúrate de que tienes Tkinter instalado. Si no lo tienes, instálalo usando:
+```bash
+apt-get install python3-tk
+```
+
+
+# Uso
+Configuración Inicial:
+
+- **1. Configuración Inicial:**
+    - Abre el archivo `config.json` para ajustar los parámetros predeterminados, como el número de reintentos, la frecuencia de actualización, y el nombre del archivo de historial.
+    - Si no tienes el archivo de historial, se generará automáticamente al realizar el primer backup.
+
+- **2. Ejecutar la Aplicación:**
+    - Ejecuta la aplicación principal con:
+```bash
+python app.py
+```
+
+- **3. Interfaz Gráfica:**
+    - Botón de "Seleccionar origen": Elige la unidad de almacenamiento de origen (por ejemplo, la tarjeta SD).
+    - Botón de "Seleccionar destino": Elige el destino donde se guardarán los archivos (por ejemplo, un disco duro o unidad USB).
+    - Botón de "Hacer Backup": Realiza el backup de los archivos seleccionados desde el origen al destino.
+
+- **4. Historial de Backups:**
+    - Todos los backups realizados se guardan en un archivo `backup_history.csv`, que puedes consultar desde el menú **Logs > Historial**.
+        
+- **5. Verificación de Checksums:**
+    - La aplicación verifica los checksums de los archivos copiados para asegurarse de que los archivos no estén corruptos.
+        
+- **6. Monitoreo de Unidades Conectadas:**
+    - La aplicación detecta automáticamente las unidades conectadas o desconectadas en el sistema y actualiza la lista de unidades disponibles sin necesidad de refrescar manualmente.
 
