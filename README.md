@@ -74,9 +74,9 @@ Configuración Inicial:
 
 - **2. Ejecutar la Aplicación:**
     - Ejecuta la aplicación principal con:
-```bash
-python app.py
-```
+    ```bash
+    python app.py
+    ```
 
 - **3. Interfaz Gráfica:**
     - Botón de "Seleccionar origen": Elige la unidad de almacenamiento de origen (por ejemplo, la tarjeta SD).
