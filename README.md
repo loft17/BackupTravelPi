@@ -46,12 +46,12 @@ apt-get install python3-tk
 # Instalación
 1. Clona este repositorio:
 ```bash
-git clone [https://github.com/tu_usuario/backup-sd.git](https://github.com/loft17/BackupTravelPi.git)
+git clone https://github.com/loft17/QuickBackup.git
 ```
 
 2. Accede al directorio del proyecto:
 ```bash
-cd BackupTravelPi
+cd QuickBackup
 ```
 
 3. Instala los paquetes necesarios:
