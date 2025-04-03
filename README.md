@@ -92,3 +92,17 @@ Configuración Inicial:
 - **6. Monitoreo de Unidades Conectadas:**
     - La aplicación detecta automáticamente las unidades conectadas o desconectadas en el sistema y actualiza la lista de unidades disponibles sin necesidad de refrescar manualmente.
 
+
+
+# Funcionalidades Avanzadas
+- Espacio en Disco: Antes de realizar el backup, la aplicación verifica si hay suficiente espacio en el destino. Si no es suficiente, te pedirá confirmación para continuar.
+- Configuración Automática: Los cambios realizados en la configuración de la aplicación se guardan automáticamente sin necesidad de presionar un botón adicional.
+- Detección Automática de Unidades: Usando watchdog, el sistema detecta automáticamente la conexión o desconexión de dispositivos de almacenamiento y actualiza la interfaz de usuario.
+
+
+# Archivos de Configuración
+### `config.json`
+Este archivo contiene la configuración predeterminada de la aplicación, como el intervalo de refresco, los reintentos para verificar los archivos y el nombre del archivo de historial.
+
+### `backup_history.csv`
+Este archivo mantiene un historial de todos los backups realizados, incluyendo la fecha, el número de archivos copiados, errores encontrados, destino y duración del backup.
