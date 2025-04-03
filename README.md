@@ -106,3 +106,12 @@ Este archivo contiene la configuración predeterminada de la aplicación, como e
 
 ### `backup_history.csv`
 Este archivo mantiene un historial de todos los backups realizados, incluyendo la fecha, el número de archivos copiados, errores encontrados, destino y duración del backup.
+
+onfiguración para auto-montaje USB enXFCE
+Vamos desde el menú: Aplicaciones -> Configuración -> Dispositivos y soportes extraíbles.
+Marcamos las opciones como se muestran en la imagen:
+- Montar los dispositivos extraíbles al conectarlos.
+- Montar los soportes extraíbles al insertarlos.
+
+![image](https://github.com/user-attachments/assets/9c34041c-e881-4ac8-817b-eaf9dd0ffe06)
+
