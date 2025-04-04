@@ -11,12 +11,15 @@ from backup_logic import backup_files, SETTINGS
 import socket
 import subprocess
 
+
+
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
-# Ya no se utilizará CONFIG_FILE porque no se modificarán los settings desde la app.
+CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 USER = getpass.getuser()
 MEDIA_BASE = f"/media/{USER}"
 LOG_DIR = os.path.join(APP_DIR, "logs")
 HOTSPOT_SCRIPT = "/opt/hotspot.sh"
+
 
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
@@ -29,32 +32,85 @@ unidades = []
 progress_win = None
 progress_label = None
 progress_var = None
-# La variable fullscreen_active se obtiene de SETTINGS y se respeta, sin posibilidad de cambiarla
 fullscreen_active = SETTINGS.get("fullscreen", False)
 
 root = tk.Tk()
 root.geometry("480x320")
-root.title("QuickBackup")
+root.title("Backup SD")
 root.configure(bg="#1e1e1e")
 if fullscreen_active:
     root.attributes("-fullscreen", True)
 
-# -----------------------------------------------------------------------------
-# Funciones de la aplicación (sin opciones para modificar los settings)
-# -----------------------------------------------------------------------------
+# Función para guardar configuración
+def save_settings():
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(SETTINGS, f, indent=4)
 
+# Función para cambiar entre pantalla completa
+def toggle_fullscreen():
+    global fullscreen_active
+    fullscreen_active = not fullscreen_active
+    SETTINGS["fullscreen"] = fullscreen_active
+    save_settings()
+    root.attributes("-fullscreen", fullscreen_active)
+
+# Función para abrir la ventana de configuración
+def abrir_configuracion():
+    config_win = tk.Toplevel()
+    config_win.title("Configuración")
+    config_win.geometry("360x320")
+    config_win.configure(bg="#1e1e1e")
+
+    var_checksum = tk.BooleanVar(value=SETTINGS["verify_checksums"])
+    var_reintentos = tk.IntVar(value=SETTINGS["max_retries"])
+    var_intervalo = tk.IntVar(value=SETTINGS["auto_refresh_interval"])
+    var_historial = tk.StringVar(value=SETTINGS["history_file"])
+    var_fullscreen = tk.BooleanVar(value=SETTINGS.get("fullscreen", False))
+
+    tk.Checkbutton(config_win, text="Verificar Checksums", variable=var_checksum,
+                   bg="#1e1e1e", fg="white", selectcolor="#1e1e1e").pack(pady=4)
+    tk.Label(config_win, text="Reintentos:", bg="#1e1e1e", fg="white").pack()
+    tk.Entry(config_win, textvariable=var_reintentos).pack(pady=2)
+    tk.Label(config_win, text="Refresco (ms):", bg="#1e1e1e", fg="white").pack()
+    tk.Entry(config_win, textvariable=var_intervalo).pack(pady=2)
+    tk.Label(config_win, text="Historial:", bg="#1e1e1e", fg="white").pack()
+    tk.Entry(config_win, textvariable=var_historial, width=30).pack(pady=2)
+    tk.Checkbutton(config_win, text="Pantalla Completa", variable=var_fullscreen,
+                   bg="#1e1e1e", fg="white", selectcolor="#1e1e1e").pack(pady=4)
+
+    def guardar_config():
+        SETTINGS["verify_checksums"] = var_checksum.get()
+        SETTINGS["max_retries"] = var_reintentos.get()
+        SETTINGS["auto_refresh_interval"] = var_intervalo.get()
+        SETTINGS["history_file"] = var_historial.get()
+        SETTINGS["fullscreen"] = var_fullscreen.get()
+        save_settings()
+        messagebox.showinfo("Configuración", "Cambios guardados. Reinicia para aplicar.")
+        config_win.destroy()
+
+    # Guardar automáticamente los cambios sin necesidad de un botón "Guardar"
+    SETTINGS["verify_checksums"] = var_checksum.get()
+    SETTINGS["max_retries"] = var_reintentos.get()
+    SETTINGS["auto_refresh_interval"] = var_intervalo.get()
+    SETTINGS["history_file"] = var_historial.get()
+    SETTINGS["fullscreen"] = var_fullscreen.get()
+    save_settings()
+
+# Función para listar las unidades conectadas
 def listar_unidades():
     try:
         return [os.path.join(MEDIA_BASE, d) for d in os.listdir(MEDIA_BASE) if os.path.ismount(os.path.join(MEDIA_BASE, d))]
     except:
         return []
 
+# Función para refrescar las unidades
 def refrescar_unidades():
     global unidades
     unidades = listar_unidades()
     update_info()
     root.after(SETTINGS["auto_refresh_interval"], refrescar_unidades)
 
+# Función para manejar la selección de origen y destino
 def abrir_selector(titulo, callback):
     ventana = tk.Toplevel(root)
     ventana.title(titulo)
@@ -66,6 +122,7 @@ def abrir_selector(titulo, callback):
                       command=lambda path=u: handle_selection(path, callback, ventana))
         b.pack(pady=5)
 
+# Función para manejar la selección de una unidad
 def handle_selection(path, callback, ventana):
     global ORIGEN, DESTINO
     if (callback == set_origen and path == DESTINO) or (callback == set_destino and path == ORIGEN):
@@ -86,6 +143,7 @@ def set_destino(path):
     btn_destino.config(text=f"DESTINO: {os.path.basename(path)}")
     update_info()
 
+# Función para obtener la información de uso de disco
 def get_info(path):
     try:
         usage = shutil.disk_usage(path)
@@ -93,10 +151,12 @@ def get_info(path):
     except:
         return ""
 
+# Función para actualizar la información del origen y destino
 def update_info():
     origen_label.config(text=get_info(ORIGEN))
     destino_label.config(text=get_info(DESTINO))
 
+# Función para comprobar las unidades
 def comprobar_unidades():
     msg = ""
     for path in [ORIGEN, DESTINO]:
@@ -109,6 +169,7 @@ def comprobar_unidades():
             msg += f"{os.path.basename(path)}\nError: {e}\n\n"
     messagebox.showinfo("Estado de unidades", msg or "Selecciona origen y destino primero.")
 
+# Función para mostrar el historial
 def mostrar_historial():
     if not os.path.exists(HISTORY_PATH):
         messagebox.showinfo("Historial", "No hay historial disponible todavía.")
@@ -116,7 +177,7 @@ def mostrar_historial():
 
     hist_win = tk.Toplevel()
     hist_win.title("Historial")
-    hist_win.geometry("640x300")
+    hist_win.geometry("640x300")  # Aumenté el tamaño para más columnas
     hist_win.configure(bg="#1e1e1e")
 
     tree = ttk.Treeview(hist_win, columns=("Fecha", "Archivos", "Copiados", "Errores", "Destino", "Tamaño Total (MB)", "Duración"), show="headings")
@@ -131,10 +192,11 @@ def mostrar_historial():
         for row in reader:
             tree.insert("", "end", values=row)
 
+# Función para comprobar el espacio antes de comenzar el backup
 def comprobar_espacio():
     try:
-        space_left = shutil.disk_usage(DESTINO).free // (1024**2)
-        if space_left < 100:
+        space_left = shutil.disk_usage(DESTINO).free // (1024**2)  # en MB
+        if space_left < 100:  # Si el espacio disponible es menor a 100 MB
             if not messagebox.askyesno("Espacio insuficiente", f"Quedan solo {space_left}MB disponibles en el destino. ¿Deseas continuar?"):
                 return False
         return True
@@ -142,6 +204,7 @@ def comprobar_espacio():
         messagebox.showerror("Error", f"Error al comprobar el espacio disponible en el destino: {e}")
         return False
 
+# Función para actualizar el progreso
 def update_progress(current, total, filename=""):
     percent = int((current / total) * 100)
     progress_var.set(percent)
@@ -154,6 +217,7 @@ def update_progress(current, total, filename=""):
         mins, secs = divmod(int(remaining), 60)
         time_est_label.config(text=f"Tiempo restante estimado: {mins:02d}:{secs:02d}")
 
+# Función para mostrar la ventana de progreso
 def mostrar_ventana_progreso():
     global progress_win, progress_label, progress_var, time_est_label, start_time
     progress_var = tk.IntVar()
@@ -168,6 +232,7 @@ def mostrar_ventana_progreso():
     time_est_label.pack()
     start_time = time.time()
 
+# Función para ejecutar el backup
 def ejecutar_backup_thread():
     mostrar_ventana_progreso()
     fecha_log = time.strftime("%Y%m%d_%H%M%S")
@@ -176,6 +241,7 @@ def ejecutar_backup_thread():
     progress_win.destroy()
     mostrar_resumen(resumen, log_file)
 
+# Función para ejecutar el backup
 def ejecutar_backup():
     if not ORIGEN or not DESTINO:
         messagebox.showerror("Error", "Selecciona origen y destino.")
@@ -189,11 +255,13 @@ def ejecutar_backup():
 
     threading.Thread(target=ejecutar_backup_thread).start()
 
+# Funciones de log y apagado
 def ver_log():
     os.system(f"xdg-open '{LOG_DIR}' &")
 
 def cerrar_aplicacion():
     root.destroy()
+
 
 def apagar():
     os.system("sudo shutdown now")
@@ -206,7 +274,7 @@ def obtener_ip_wlan0():
         s.close()
         return ip
     except Exception:
-        return "Sin conexión"
+        return "Sin conexión"   
 
 def hotspot_start():
     subprocess.run([HOTSPOT_SCRIPT, "start"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -215,6 +283,7 @@ def hotspot_start():
 def hotspot_stop():
     subprocess.run([HOTSPOT_SCRIPT, "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     actualizar_estado_hotspot()
+
 
 def hotspot_status():
     resultado = subprocess.run([HOTSPOT_SCRIPT, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -230,92 +299,82 @@ def obtener_estado_hotspot():
     except:
         return False
 
-def mostrar_resumen(resumen, log_file):
-    msg = resumen + "\n\nVer log para más detalles."
-    if messagebox.askyesno("Backup completado", msg + "\n¿Deseas ver el log?"):
-        os.system(f"xdg-open '{log_file}' &")
+# Añadir botón táctil flotante y menú desplegable
 
-# Menú táctil flotante sin opciones de configuración
 def mostrar_menu_tactil():
-    overlay = tk.Toplevel(root)
-    overlay.attributes("-alpha", 0.5)
-    overlay.overrideredirect(True)
-    overlay.geometry(f"{root.winfo_width()}x{root.winfo_height()}+{root.winfo_x()}+{root.winfo_y()}")
-    overlay.configure(bg="black")
+    menu_win = tk.Toplevel(root)
+    menu_win.title("Menú de Opciones")
+    menu_win.geometry("300x400")
+    menu_win.configure(bg="#1e1e1e")
 
-    close_button = tk.Button(overlay, text="X", command=overlay.destroy, bg="#333", fg="white", font=("Arial", 12))
-    close_button.place(relx=0.98, rely=0.02, anchor="ne")
+    opciones = [
+        ("Pantalla completa", toggle_fullscreen),
+        ("Configuración", abrir_configuracion),
+        ("Historial de backups", mostrar_historial),
+        ("Verificar unidades", comprobar_unidades),
+        ("Iniciar Hotspot", hotspot_start),
+        ("Detener Hotspot", hotspot_stop),
+        ("Estado Hotspot", hotspot_status),
+        ("Apagar", apagar),
+        ("Salir", cerrar_aplicacion),
+    ]
 
-    menu_frame = tk.Frame(overlay, bg="#1e1e1e")
-    menu_frame.place(relx=0.5, rely=0.5, anchor="center")
+    for texto, accion in opciones:
+        b = tk.Button(menu_win, text=texto, command=lambda a=accion: (a(), menu_win.destroy()),
+                      width=25, height=2, bg="#333", fg="white", font=("Arial", 12))
+        b.pack(pady=5)
 
-    def cargar_menu_principal():
-        for widget in menu_frame.winfo_children():
-            widget.destroy()
-        opciones_principal = [
-            ("Hotspot", cargar_submenu_hotspot),
-            ("Sistema", cargar_submenu_sistema),
-        ]
-        for texto, accion in opciones_principal:
-            btn = tk.Button(menu_frame, text=texto, width=25, height=2, bg="#333", fg="white",
-                            font=("Arial", 12), command=accion)
-            btn.pack(pady=5)
 
-    def cargar_submenu_hotspot():
-        for widget in menu_frame.winfo_children():
-            widget.destroy()
-        opciones_hotspot = [
-            ("Iniciar Hotspot", hotspot_start),
-            ("Detener Hotspot", hotspot_stop),
-            ("Estado Hotspot", hotspot_status),
-            ("Volver", cargar_menu_principal)
-        ]
-        for texto, accion in opciones_hotspot:
-            btn = tk.Button(menu_frame, text=texto, width=25, height=2, bg="#333", fg="white",
-                            font=("Arial", 12), command=accion)
-            btn.pack(pady=5)
 
-    def cargar_submenu_sistema():
-        for widget in menu_frame.winfo_children():
-            widget.destroy()
-        opciones_sistema = [
-            ("Apagar", apagar),
-            ("Cerrar", cerrar_aplicacion),
-            ("Ver Log", ver_log),
-            ("Volver", cargar_menu_principal)
-        ]
-        for texto, accion in opciones_sistema:
-            if texto in ["Apagar", "Cerrar"]:
-                btn = tk.Button(menu_frame, text=texto, width=25, height=2, bg="#333", fg="white",
-                                font=("Arial", 12),
-                                command=lambda a=accion: (a(), overlay.destroy()))
-            else:
-                btn = tk.Button(menu_frame, text=texto, width=25, height=2, bg="#333", fg="white",
-                                font=("Arial", 12), command=accion)
-            btn.pack(pady=5)
+# Menú de la aplicación
+menubar = tk.Menu(root)
 
-    cargar_menu_principal()
+# Sección "Menu" - Acciones principales relacionadas con las unidades
+dispositivos = tk.Menu(menubar, tearoff=0)
+dispositivos.add_command(label="Refrescar", command=refrescar_unidades)
+dispositivos.add_command(label="Verificar", command=comprobar_unidades)
+menubar.add_cascade(label="Dispositivos", menu=dispositivos)
 
-# -----------------------------------------------------------------------------
-# Configuración de la interfaz
-# -----------------------------------------------------------------------------
+# Sección "Hotspot"
+hotspot_menu = tk.Menu(menubar, tearoff=0)
+hotspot_menu.add_command(label="Iniciar Hotspot", command=hotspot_start)
+hotspot_menu.add_command(label="Detener Hotspot", command=hotspot_stop)
+hotspot_menu.add_command(label="Ver Estado", command=hotspot_status)
+menubar.add_cascade(label="Hotspot", menu=hotspot_menu)
 
-btn_origen = tk.Button(root, text="Seleccionar origen", width=30, height=2, bg="#444", fg="white",
-                       font=("Arial", 12), command=lambda: abrir_selector("Selecciona origen", set_origen))
+# Sección "Logs" - Acciones para manejar los logs
+logs = tk.Menu(menubar, tearoff=0)
+logs.add_command(label="Historial", command=mostrar_historial)
+logs.add_command(label="Ver log", command=ver_log)
+menubar.add_cascade(label="Logs", menu=logs)
+
+# Sección "Sistema" - Opciones de sistema como pantalla completa y apagado
+sistema = tk.Menu(menubar, tearoff=0)
+sistema.add_command(label="Pantalla completa", command=toggle_fullscreen)
+sistema.add_command(label="Salir", command=cerrar_aplicacion)
+menubar.add_cascade(label="Sistema", menu=sistema)
+sistema.add_separator()
+sistema.add_command(label="Apagar", command=apagar)
+
+root.config(menu=menubar)
+
+
+
+# Botones de origen y destino
+btn_origen = tk.Button(root, text="Seleccionar origen", width=30, height=2, bg="#444", fg="white", font=("Arial", 12), command=lambda: abrir_selector("Selecciona origen", set_origen))
 btn_origen.place(x=70, y=20)
 
 origen_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
 origen_label.place(x=70, y=70)
 
-btn_destino = tk.Button(root, text="Seleccionar destino", width=30, height=2, bg="#444", fg="white",
-                        font=("Arial", 12), command=lambda: abrir_selector("Selecciona destino", set_destino))
+btn_destino = tk.Button(root, text="Seleccionar destino", width=30, height=2, bg="#444", fg="white", font=("Arial", 12), command=lambda: abrir_selector("Selecciona destino", set_destino))
 btn_destino.place(x=70, y=100)
 
 destino_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
 destino_label.place(x=70, y=150)
 
-btn_opciones = tk.Button(root, text="☰ Opciones", bg="#444", fg="white", font=("Arial", 12),
-                         width=12, height=2, command=mostrar_menu_tactil)
+# Botón táctil flotante "☰ Opciones"
+btn_opciones = tk.Button(root, text="☰ Opciones", bg="#444", fg="white", font=("Arial", 12), width=12, height=2, command=mostrar_menu_tactil)
 btn_opciones.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
 
 hotspot_status_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
@@ -329,12 +388,16 @@ def actualizar_estado_hotspot():
         hotspot_status_label.config(text=f"Hotspot activo: {ssid} - {ip}", fg="lime")
     else:
         hotspot_status_label.config(text="Hotspot inactivo", fg="red")
-    root.after(10000, actualizar_estado_hotspot)
 
+    root.after(10000, actualizar_estado_hotspot)  # Actualiza cada 10 segundos
 actualizar_estado_hotspot()
 
-tk.Button(root, text="Hacer Backup", command=ejecutar_backup, width=30, height=2,
-          bg="#28a745", fg="white", font=("Arial", 12)).place(x=70, y=200)
 
+
+
+# Botón de ejecutar backup
+tk.Button(root, text="Hacer Backup", command=ejecutar_backup, width=30, height=2, bg="#28a745", fg="white", font=("Arial", 12)).place(x=70, y=200)
+
+# Refrescar unidades cada cierto intervalo
 refrescar_unidades()
 root.mainloop()
