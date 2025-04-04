@@ -259,6 +259,10 @@ def ejecutar_backup():
 def ver_log():
     os.system(f"xdg-open '{LOG_DIR}' &")
 
+def cerrar_aplicacion():
+    root.destroy()
+
+
 def apagar():
     os.system("sudo shutdown now")
 
@@ -302,10 +306,17 @@ def obtener_estado_hotspot():
 menubar = tk.Menu(root)
 
 # Sección "Menu" - Acciones principales relacionadas con las unidades
-menu = tk.Menu(menubar, tearoff=0)
-menu.add_command(label="Refrescar unidades", command=refrescar_unidades)
-menu.add_command(label="Verificar dispositivos", command=comprobar_unidades)
-menubar.add_cascade(label="Menu", menu=menu)
+dispositivos = tk.Menu(menubar, tearoff=0)
+dispositivos.add_command(label="Refrescar", command=refrescar_unidades)
+dispositivos.add_command(label="Verificar", command=comprobar_unidades)
+menubar.add_cascade(label="Dispositivos", menu=dispositivos)
+
+# Sección "Hotspot"
+hotspot_menu = tk.Menu(menubar, tearoff=0)
+hotspot_menu.add_command(label="Iniciar Hotspot", command=hotspot_start)
+hotspot_menu.add_command(label="Detener Hotspot", command=hotspot_stop)
+hotspot_menu.add_command(label="Ver Estado", command=hotspot_status)
+menubar.add_cascade(label="Hotspot", menu=hotspot_menu)
 
 # Sección "Logs" - Acciones para manejar los logs
 logs = tk.Menu(menubar, tearoff=0)
@@ -316,18 +327,14 @@ menubar.add_cascade(label="Logs", menu=logs)
 # Sección "Sistema" - Opciones de sistema como pantalla completa y apagado
 sistema = tk.Menu(menubar, tearoff=0)
 sistema.add_command(label="Pantalla completa", command=toggle_fullscreen)
-sistema.add_command(label="Apagar", command=apagar)
+sistema.add_command(label="Salir", command=cerrar_aplicacion)
 menubar.add_cascade(label="Sistema", menu=sistema)
-
-# Sección "Hotspot"
-hotspot_menu = tk.Menu(menubar, tearoff=0)
-hotspot_menu.add_command(label="Iniciar Hotspot", command=hotspot_start)
-hotspot_menu.add_command(label="Detener Hotspot", command=hotspot_stop)
-hotspot_menu.add_command(label="Ver Estado", command=hotspot_status)
-menubar.add_cascade(label="Hotspot", menu=hotspot_menu)
-
+sistema.add_separator()
+sistema.add_command(label="Apagar", command=apagar)
 
 root.config(menu=menubar)
+
+
 
 # Botones de origen y destino
 btn_origen = tk.Button(root, text="Seleccionar origen", width=30, height=2, bg="#444", fg="white", font=("Arial", 12), command=lambda: abrir_selector("Selecciona origen", set_origen))
@@ -343,7 +350,7 @@ destino_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial",
 destino_label.place(x=70, y=150)
 
 hotspot_status_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
-hotspot_status_label.place(x=70, y=290)
+hotspot_status_label.place(x=70, y=250)
 
 def actualizar_estado_hotspot():
     activo = obtener_estado_hotspot()
