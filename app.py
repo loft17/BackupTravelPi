@@ -273,12 +273,13 @@ def obtener_ip_wlan0():
         return "Sin conexión"   
 
 def hotspot_start():
-    resultado = subprocess.run([HOTSPOT_SCRIPT, "start"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    messagebox.showinfo("Hotspot", resultado.stdout or "Hotspot iniciado.")
+    subprocess.run([HOTSPOT_SCRIPT, "start"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    actualizar_estado_hotspot()
 
 def hotspot_stop():
-    resultado = subprocess.run([HOTSPOT_SCRIPT, "stop"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    messagebox.showinfo("Hotspot", resultado.stdout or "Hotspot detenido.")
+    subprocess.run([HOTSPOT_SCRIPT, "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    actualizar_estado_hotspot()
+
 
 def hotspot_status():
     resultado = subprocess.run([HOTSPOT_SCRIPT, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
