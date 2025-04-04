@@ -4,6 +4,5 @@
     "auto_refresh_interval": 5000,
     "history_file": "backup_history.csv",
     "fullscreen": false,
-    "lang": "es",
-    "test_corrupt_file": true
+    "lang": "es"
 }

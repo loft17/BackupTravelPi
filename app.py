@@ -9,6 +9,8 @@ import csv
 import json
 from backup_logic import backup_files, SETTINGS
 import socket
+import subprocess
+
 
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -16,6 +18,8 @@ CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 USER = getpass.getuser()
 MEDIA_BASE = f"/media/{USER}"
 LOG_DIR = os.path.join(APP_DIR, "logs")
+HOTSPOT_SCRIPT = "/opt/hotspot.sh"
+
 
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
@@ -266,7 +270,32 @@ def obtener_ip_wlan0():
         s.close()
         return ip
     except Exception:
-        return "Sin conexión"    
+        return "Sin conexión"   
+
+def hotspot_start():
+    resultado = subprocess.run([HOTSPOT_SCRIPT, "start"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    messagebox.showinfo("Hotspot", resultado.stdout or "Hotspot iniciado.")
+
+def hotspot_stop():
+    resultado = subprocess.run([HOTSPOT_SCRIPT, "stop"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    messagebox.showinfo("Hotspot", resultado.stdout or "Hotspot detenido.")
+
+def hotspot_status():
+    resultado = subprocess.run([HOTSPOT_SCRIPT, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    messagebox.showinfo("Hotspot", resultado.stdout or "Estado desconocido.")
+
+def obtener_estado_hotspot():
+    try:
+        resultado = subprocess.run([HOTSPOT_SCRIPT, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if "Hotspot activo" in resultado.stdout:
+            return True
+        else:
+            return False
+    except:
+        return False
+
+
+
 
 # Menú de la aplicación
 menubar = tk.Menu(root)
@@ -289,6 +318,14 @@ sistema.add_command(label="Pantalla completa", command=toggle_fullscreen)
 sistema.add_command(label="Apagar", command=apagar)
 menubar.add_cascade(label="Sistema", menu=sistema)
 
+# Sección "Hotspot"
+hotspot_menu = tk.Menu(menubar, tearoff=0)
+hotspot_menu.add_command(label="Iniciar Hotspot", command=hotspot_start)
+hotspot_menu.add_command(label="Detener Hotspot", command=hotspot_stop)
+hotspot_menu.add_command(label="Ver Estado", command=hotspot_status)
+menubar.add_cascade(label="Hotspot", menu=hotspot_menu)
+
+
 root.config(menu=menubar)
 
 # Botones de origen y destino
@@ -304,8 +341,22 @@ btn_destino.place(x=70, y=100)
 destino_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
 destino_label.place(x=70, y=150)
 
-ip_label = tk.Label(root, text=f"IP HOTSPOT: {obtener_ip_wlan0()}", fg="white", bg="#1e1e1e", font=("Arial", 10))
-ip_label.place(x=20, y=270)
+hotspot_status_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
+hotspot_status_label.place(x=70, y=290)
+
+def actualizar_estado_hotspot():
+    activo = obtener_estado_hotspot()
+    if activo:
+        ssid = "PiTravel"
+        ip = "10.0.0.1"
+        hotspot_status_label.config(text=f"Hotspot activo: {ssid} - {ip}", fg="lime")
+    else:
+        hotspot_status_label.config(text="Hotspot inactivo", fg="red")
+
+    root.after(10000, actualizar_estado_hotspot)  # Actualiza cada 10 segundos
+actualizar_estado_hotspot()
+
+
 
 
 # Botón de ejecutar backup
