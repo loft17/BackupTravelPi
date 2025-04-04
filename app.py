@@ -8,6 +8,8 @@ import time
 import csv
 import json
 from backup_logic import backup_files, SETTINGS
+import socket
+
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
@@ -256,6 +258,16 @@ def ver_log():
 def apagar():
     os.system("sudo shutdown now")
 
+def obtener_ip_wlan0():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "Sin conexión"    
+
 # Menú de la aplicación
 menubar = tk.Menu(root)
 
@@ -291,6 +303,10 @@ btn_destino.place(x=70, y=100)
 
 destino_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
 destino_label.place(x=70, y=150)
+
+ip_label = tk.Label(root, text=f"IP HOTSPOT: {obtener_ip_wlan0()}", fg="white", bg="#1e1e1e", font=("Arial", 10))
+ip_label.place(x=20, y=270)
+
 
 # Botón de ejecutar backup
 tk.Button(root, text="Hacer Backup", command=ejecutar_backup, width=30, height=2, bg="#28a745", fg="white", font=("Arial", 12)).place(x=70, y=200)
