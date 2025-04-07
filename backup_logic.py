@@ -1,18 +1,11 @@
+# backup_logic.py
 import os
 import time
 import hashlib
 import shutil
 import csv
 from datetime import datetime
-
-SETTINGS = {
-    "verify_checksums": True,
-    "max_retries": 3,
-    "auto_refresh_interval": 5000,
-    "history_file": "backup_history.csv",
-    "fullscreen": False,
-    "lang": "es"
-}
+from config import SETTINGS
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(APP_DIR, "logs")
@@ -21,7 +14,6 @@ CHECKSUM_PATH = os.path.join(APP_DIR, "last_checksums.txt")
 if not os.path.exists(LOG_PATH):
     os.makedirs(LOG_PATH)
 
-# === FUNCIONES ===
 def calculate_checksum(file_path):
     sha256 = hashlib.sha256()
     with open(file_path, "rb") as f:
@@ -37,12 +29,12 @@ def get_files_to_copy(src_dir):
     return file_list
 
 def write_history(fecha, total, copiados, errores, destino, total_size, duracion):
-    with open(os.path.join(APP_DIR, SETTINGS["history_file"]), "a") as f:
+    history_file = os.path.join(APP_DIR, SETTINGS["history_file"])
+    with open(history_file, "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([fecha, total, copiados, errores, destino, total_size / (1024 ** 2), round(duracion, 2)])
 
-
-def backup_files(src, dst, log_path, checksum_path, update_progress=None):
+def backup_files(src, dst, update_progress=None):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     fecha_folder = datetime.now().strftime("%Y%m%d_%H%M%S")
     dst_folder = os.path.join(dst, f"backup_{fecha_folder}")
@@ -52,13 +44,13 @@ def backup_files(src, dst, log_path, checksum_path, update_progress=None):
     os.makedirs(os.path.dirname(full_log), exist_ok=True)
 
     log = open(full_log, "a")
-    checksums = open(checksum_path, "a")
+    checksums = open(CHECKSUM_PATH, "a")
 
     files = get_files_to_copy(src)
     total = len(files)
     copiados = 0
     errores = []
-    total_size = 0  # Variable para almacenar el tamaño total
+    total_size = 0  # Acumula el tamaño total de los archivos
 
     log.write(f"--- BACKUP {fecha} ---\n")
     log.write(f"Origen: {src}\nDestino: {dst_folder}\n")
@@ -70,7 +62,6 @@ def backup_files(src, dst, log_path, checksum_path, update_progress=None):
         dst_file = os.path.join(dst_folder, rel_path)
         os.makedirs(os.path.dirname(dst_file), exist_ok=True)
 
-        # Calcular el tamaño total de los archivos
         total_size += os.path.getsize(src_file)
 
         success = False
@@ -116,7 +107,6 @@ def backup_files(src, dst, log_path, checksum_path, update_progress=None):
     log.close()
     checksums.close()
 
-    # Guardar el historial con el número de errores y el tamaño total de la copia
     write_history(fecha, total, copiados, len(errores), dst_folder, total_size, duracion)
 
     return resumen + ("\nErrores en algunos archivos." if errores else "")

@@ -1,48 +1,43 @@
+# gui.py
 import os
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import shutil
 import getpass
 import threading
 import time
-import csv
-import json
-from backup_logic import backup_files, SETTINGS
-import socket
-import subprocess
+from backup_logic import backup_files
+from hotspot import hotspot_start, hotspot_stop, hotspot_status, obtener_estado_hotspot
+from config import SETTINGS
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
-# Ya no se utilizará CONFIG_FILE porque no se modificarán los settings desde la app.
 USER = getpass.getuser()
 MEDIA_BASE = f"/media/{USER}"
-LOG_DIR = os.path.join(APP_DIR, "logs")
-HOTSPOT_SCRIPT = "/opt/hotspot.sh"
 
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(APP_DIR, "logs")
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
-HISTORY_PATH = os.path.join(APP_DIR, SETTINGS["history_file"])
-
+# Variables globales para origen, destino y modo de interfaz
 ORIGEN = ""
 DESTINO = ""
 unidades = []
+interface_mode = "drives"  # Puede ser "drives" o "folders"
 progress_win = None
 progress_label = None
 progress_var = None
-# La variable fullscreen_active se obtiene de SETTINGS y se respeta, sin posibilidad de cambiarla
-fullscreen_active = SETTINGS.get("fullscreen", False)
+time_est_label = None
+start_time = None
 
 root = tk.Tk()
 root.geometry("480x320")
 root.title("QuickBackup")
 root.configure(bg="#1e1e1e")
-if fullscreen_active:
+if SETTINGS.get("fullscreen", False):
     root.attributes("-fullscreen", True)
 
-# -----------------------------------------------------------------------------
-# Funciones de la aplicación (sin opciones para modificar los settings)
-# -----------------------------------------------------------------------------
-
+# ----------------------------------------------------------------------
+# Funciones para selección de unidades (drives)
 def listar_unidades():
     try:
         return [os.path.join(MEDIA_BASE, d) for d in os.listdir(MEDIA_BASE) if os.path.ismount(os.path.join(MEDIA_BASE, d))]
@@ -51,7 +46,8 @@ def listar_unidades():
 
 def refrescar_unidades():
     global unidades
-    unidades = listar_unidades()
+    if interface_mode == "drives":
+        unidades = listar_unidades()
     update_info()
     root.after(SETTINGS["auto_refresh_interval"], refrescar_unidades)
 
@@ -74,6 +70,20 @@ def handle_selection(path, callback, ventana):
     callback(path)
     ventana.destroy()
 
+# ----------------------------------------------------------------------
+# Funciones para selección de carpetas
+def seleccionar_carpeta_origen():
+    carpeta = filedialog.askdirectory(title="Selecciona carpeta de origen")
+    if carpeta:
+        set_origen(carpeta)
+
+def seleccionar_carpeta_destino():
+    carpeta = filedialog.askdirectory(title="Selecciona carpeta de destino")
+    if carpeta:
+        set_destino(carpeta)
+
+# ----------------------------------------------------------------------
+# Funciones comunes para establecer origen y destino
 def set_origen(path):
     global ORIGEN
     ORIGEN = path
@@ -110,7 +120,8 @@ def comprobar_unidades():
     messagebox.showinfo("Estado de unidades", msg or "Selecciona origen y destino primero.")
 
 def mostrar_historial():
-    if not os.path.exists(HISTORY_PATH):
+    history_file = os.path.join(APP_DIR, SETTINGS["history_file"])
+    if not os.path.exists(history_file):
         messagebox.showinfo("Historial", "No hay historial disponible todavía.")
         return
 
@@ -123,10 +134,10 @@ def mostrar_historial():
     for col in tree["columns"]:
         tree.heading(col, text=col)
         tree.column(col, width=120)
-
     tree.pack(fill="both", expand=True)
 
-    with open(HISTORY_PATH, newline="") as f:
+    import csv
+    with open(history_file, newline="") as f:
         reader = csv.reader(f)
         for row in reader:
             tree.insert("", "end", values=row)
@@ -142,6 +153,8 @@ def comprobar_espacio():
         messagebox.showerror("Error", f"Error al comprobar el espacio disponible en el destino: {e}")
         return False
 
+# ----------------------------------------------------------------------
+# Funciones de progreso y backup
 def update_progress(current, total, filename=""):
     percent = int((current / total) * 100)
     progress_var.set(percent)
@@ -170,11 +183,9 @@ def mostrar_ventana_progreso():
 
 def ejecutar_backup_thread():
     mostrar_ventana_progreso()
-    fecha_log = time.strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(LOG_DIR, f"log_{fecha_log}.txt")
-    resumen = backup_files(ORIGEN, DESTINO, log_file, "last_checksums.txt", update_progress)
+    resumen = backup_files(ORIGEN, DESTINO, update_progress)
     progress_win.destroy()
-    mostrar_resumen(resumen, log_file)
+    mostrar_resumen(resumen)
 
 def ejecutar_backup():
     if not ORIGEN or not DESTINO:
@@ -183,14 +194,9 @@ def ejecutar_backup():
     if ORIGEN == DESTINO:
         messagebox.showerror("Error", "El origen y destino no pueden ser el mismo.")
         return
-
     if not comprobar_espacio():
         return
-
     threading.Thread(target=ejecutar_backup_thread).start()
-
-def ver_log():
-    os.system(f"xdg-open '{LOG_DIR}' &")
 
 def cerrar_aplicacion():
     root.destroy()
@@ -198,44 +204,23 @@ def cerrar_aplicacion():
 def apagar():
     os.system("sudo shutdown now")
 
-def obtener_ip_wlan0():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "Sin conexión"
+# ----------------------------------------------------------------------
+# Funciones de Hotspot y menú del sistema
+def actualizar_estado_hotspot():
+    activo = obtener_estado_hotspot()
+    if activo:
+        ssid = "PiTravel"
+        ip = "10.0.0.1"
+        hotspot_status_label.config(text=f"Hotspot activo: {ssid} - {ip}", fg="lime")
+    else:
+        hotspot_status_label.config(text="Hotspot inactivo", fg="red")
+    root.after(10000, actualizar_estado_hotspot)
 
-def hotspot_start():
-    subprocess.run([HOTSPOT_SCRIPT, "start"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    actualizar_estado_hotspot()
-
-def hotspot_stop():
-    subprocess.run([HOTSPOT_SCRIPT, "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    actualizar_estado_hotspot()
-
-def hotspot_status():
-    resultado = subprocess.run([HOTSPOT_SCRIPT, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    messagebox.showinfo("Hotspot", resultado.stdout or "Estado desconocido.")
-
-def obtener_estado_hotspot():
-    try:
-        resultado = subprocess.run([HOTSPOT_SCRIPT, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if "Hotspot activo" in resultado.stdout:
-            return True
-        else:
-            return False
-    except:
-        return False
-
-def mostrar_resumen(resumen, log_file):
+def mostrar_resumen(resumen):
     msg = resumen + "\n\nVer log para más detalles."
     if messagebox.askyesno("Backup completado", msg + "\n¿Deseas ver el log?"):
-        os.system(f"xdg-open '{log_file}' &")
+        os.system(f"xdg-open '{LOG_DIR}' &")
 
-# Menú táctil flotante sin opciones de configuración
 def mostrar_menu_tactil():
     overlay = tk.Toplevel(root)
     overlay.attributes("-alpha", 0.5)
@@ -279,40 +264,50 @@ def mostrar_menu_tactil():
         for widget in menu_frame.winfo_children():
             widget.destroy()
         opciones_sistema = [
-            ("Apagar", apagar),
-            ("Cerrar", cerrar_aplicacion),
-            ("Ver Log", ver_log),
+            ("Apagar", lambda: (apagar(), overlay.destroy())),
+            ("Cerrar", lambda: (cerrar_aplicacion(), overlay.destroy())),
             ("Volver", cargar_menu_principal)
         ]
         for texto, accion in opciones_sistema:
-            if texto in ["Apagar", "Cerrar"]:
-                btn = tk.Button(menu_frame, text=texto, width=25, height=2, bg="#333", fg="white",
-                                font=("Arial", 12),
-                                command=lambda a=accion: (a(), overlay.destroy()))
-            else:
-                btn = tk.Button(menu_frame, text=texto, width=25, height=2, bg="#333", fg="white",
-                                font=("Arial", 12), command=accion)
+            btn = tk.Button(menu_frame, text=texto, width=25, height=2, bg="#333", fg="white",
+                            font=("Arial", 12), command=accion)
             btn.pack(pady=5)
 
     cargar_menu_principal()
 
-# -----------------------------------------------------------------------------
-# Configuración de la interfaz
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# Función para alternar entre pantalla completa y modo ventana
+def toggle_fullscreen():
+    current = root.attributes("-fullscreen")
+    new_mode = not current
+    root.attributes("-fullscreen", new_mode)
+    btn_toggle_fullscreen.config(text="[ - ]" if new_mode else "[ - ]")
 
-btn_origen = tk.Button(root, text="Seleccionar origen", width=30, height=2, bg="#444", fg="white",
-                       font=("Arial", 12), command=lambda: abrir_selector("Selecciona origen", set_origen))
+# ----------------------------------------------------------------------
+# Botones e inicialización de la interfaz principal
+btn_origen = tk.Button(root, text="Seleccionar origen", width=30, height=2, bg="#444", fg="white", font=("Arial", 12))
+btn_destino = tk.Button(root, text="Seleccionar destino", width=30, height=2, bg="#444", fg="white", font=("Arial", 12))
+
+def actualizar_botones_seleccion():
+    if interface_mode == "drives":
+        btn_origen.config(text="Seleccionar origen (unidad)", command=lambda: abrir_selector("Selecciona origen", set_origen))
+        btn_destino.config(text="Seleccionar destino (unidad)", command=lambda: abrir_selector("Selecciona destino", set_destino))
+    else:
+        btn_origen.config(text="Seleccionar carpeta origen", command=seleccionar_carpeta_origen)
+        btn_destino.config(text="Seleccionar carpeta destino", command=seleccionar_carpeta_destino)
+
+actualizar_botones_seleccion()
+
 btn_origen.place(x=70, y=20)
-
 origen_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
 origen_label.place(x=70, y=70)
-
-btn_destino = tk.Button(root, text="Seleccionar destino", width=30, height=2, bg="#444", fg="white",
-                        font=("Arial", 12), command=lambda: abrir_selector("Selecciona destino", set_destino))
 btn_destino.place(x=70, y=100)
-
 destino_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
 destino_label.place(x=70, y=150)
+
+btn_backup = tk.Button(root, text="Hacer Backup", command=ejecutar_backup, width=30, height=2,
+                       bg="#28a745", fg="white", font=("Arial", 12))
+btn_backup.place(x=70, y=200)
 
 btn_opciones = tk.Button(root, text="☰ Opciones", bg="#444", fg="white", font=("Arial", 12),
                          width=12, height=2, command=mostrar_menu_tactil)
@@ -321,20 +316,23 @@ btn_opciones.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
 hotspot_status_label = tk.Label(root, text="", fg="white", bg="#1e1e1e", font=("Arial", 10))
 hotspot_status_label.place(x=70, y=250)
 
-def actualizar_estado_hotspot():
-    activo = obtener_estado_hotspot()
-    if activo:
-        ssid = "PiTravel"
-        ip = "10.0.0.1"
-        hotspot_status_label.config(text=f"Hotspot activo: {ssid} - {ip}", fg="lime")
-    else:
-        hotspot_status_label.config(text="Hotspot inactivo", fg="red")
-    root.after(10000, actualizar_estado_hotspot)
+# Botón para cambiar entre selección de unidades y carpetas
+def toggle_interface_mode():
+    global interface_mode
+    interface_mode = "folders" if interface_mode == "drives" else "drives"
+    actualizar_botones_seleccion()
+
+btn_toggle_interface = tk.Button(root, text=" U/D ", width=1, height=1, bg="#555", fg="white",
+                                 font=("Arial", 12), command=toggle_interface_mode)
+btn_toggle_interface.place(x=410, y=80)
+
+# Botón para alternar entre pantalla completa y ventana
+btn_toggle_fullscreen = tk.Button(root, text="[ - ]", width=1, height=1, bg="#555", fg="white",
+                                  font=("Arial", 12), command=toggle_fullscreen)
+btn_toggle_fullscreen.place(x=410, y=20)
 
 actualizar_estado_hotspot()
-
-tk.Button(root, text="Hacer Backup", command=ejecutar_backup, width=30, height=2,
-          bg="#28a745", fg="white", font=("Arial", 12)).place(x=70, y=200)
-
 refrescar_unidades()
-root.mainloop()
+
+def run():
+    root.mainloop()

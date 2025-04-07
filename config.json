@@ -1,8 +1,0 @@
-{
-    "verify_checksums": true,
-    "max_retries": 3,
-    "auto_refresh_interval": 5000,
-    "history_file": "backup_history.csv",
-    "fullscreen": true,
-    "lang": "es"
-}
